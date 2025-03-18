@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import logging
+import io
 from typing import Dict
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, LLMConfig, BrowserConfig, CacheMode
 from pydantic import BaseModel, Field
@@ -30,7 +31,8 @@ class OpenAIModelFee(BaseModel):
         }
 
 async def extract_structured_data_using_llm(provider: str, api_token: str = None):
-    print(f"\n--- Extracting Structured Data with {provider} ---")
+    output = io.StringIO()
+    output.write(f"\n--- Extracting Structured Data with {provider} ---\n")
 
     browser_config = BrowserConfig(headless=True)
 
@@ -43,7 +45,7 @@ async def extract_structured_data_using_llm(provider: str, api_token: str = None
         Ensure that no model or fee is missed and output is formatted properly."""
     )
 
-    print("Extraction strategy initialized")
+    output.write("Extraction strategy initialized\n")
 
     crawler_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
@@ -56,16 +58,20 @@ async def extract_structured_data_using_llm(provider: str, api_token: str = None
         result = await crawler.arun(url="https://openai.com/api/pricing/", config=crawler_config)
 
         # Debug raw response before parsing
-        print("\n=== Raw Extracted Content ===\n", result.extracted_content)
+        output.write("\n=== Raw Extracted Content ===\n")
+        output.write(result.extracted_content + "\n")
 
         if result.extracted_content:
             try:
                 extracted_data = json.loads(result.extracted_content)
-                print("\n=== Parsed Extracted Data ===\n", extracted_data)
+                output.write("\n=== Parsed Extracted Data ===\n")
+                output.write(json.dumps(extracted_data, indent=2) + "\n")
             except json.JSONDecodeError as e:
-                print(f"\n!!! JSON Parsing Error: {e} !!!")
-                print("\n--- Check the extracted content manually ---\n")
+                output.write(f"\n!!! JSON Parsing Error: {e} !!!\n")
+                output.write("\n--- Check the extracted content manually ---\n")
 
+    return output.getvalue()
 
 if __name__ == "__main__":
-    asyncio.run(extract_structured_data_using_llm(provider="ollama/llama3.2:1b", api_token=None))
+    output = asyncio.run(extract_structured_data_using_llm(provider="ollama/llama3.2:1b", api_token=None))
+    print(output)
